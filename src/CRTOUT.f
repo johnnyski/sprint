@@ -1,0 +1,391 @@
+      SUBROUTINE CRTOUT(ICART,ICTAB,NPREC,ICRTST,INPTST,IOP)
+C
+C        CRTOUT- GENERATES THE CARTESIAN COORDINATE SYSTEM BASED UPON THE
+C             SPECIFICATIONS IN COMMON BLOCK /TRANS/ AND REORDERS IT IN
+C             INCREASING AZIMUTH.
+C     IOP=0 ==> (R,A,E -> CART OR COPL -> CART)
+C     IOP=1 ==> RHI -> CART (PART 1)
+C     IOP=2 ==> RHI -> CART (PART 2)
+C     IOP=3 ==> AIRBORNE -> CART
+C
+      PARAMETER (MAXPLN=65536,NID=296)
+      COMMON /IDBLK/ID(NID)
+      DIMENSION ICART(NPREC), ICTAB(4), AZC(4)
+      LOGICAL IS360
+      COMMON /SCAN/ ICOPLANE,IFLGBAS,IPPI
+      COMMON /RHIS/ IRHICRS,LOWAZ2,MAXAZ2,MINAZ2,ICART2(MAXPLN),
+     X     ICTAB2(4),KZV(3),IDSV
+      COMMON /TRANS/ X1,X2,XD,Y1,Y2,YD,Z1,Z2,ZD,NX,NY,NZ,XORG,YORG,
+     X   ANGXAX,ZRAD,AZLOW,BAD,ASNF,ACSF,IAXORD(3),NPLANE,EDIAM
+      COMMON /SETAZM/ USAZ1,USAZ2,USGAP,USINC,IFOR36,IFORDR
+C
+C        COMMON BLOCK  /ADJUST/
+C
+C        SCLDBZ- SCALE FACTOR-  PACKED QUANTITY TO REFLECTIVITY FACTOR (DBZ)
+C        SCLAZ-                 PACKED QUANTITY TO AZIMUTH (DEG)
+C        SCLRNG-                PACKED QUANTITY TO GATE NUMBER
+C        UNSCDB- INVERSE OF  SCLDBZ
+C        UNSCAZ- INVERSE OF  SCLAZ
+C        UNSCRG- INVERSE OF  SCLRNG
+C
+      COMMON/ADJUST/INFLD(10,3),SCLIF(10,2),NIF,IOFLD(10,3),SCLOF(10,2),
+     X   NOF,SCLAZ,SCLRNG,SCLEL,UNSCAZ,UNSCRG,UNSCEL,LOWAZ,IZAD,IS360,
+     X   MINAZ,MAXAZ,METSPC(10),IWFLD(10),NFLI,SCLNYQ,UNSNYQ
+      COMMON /FNAMES/ CINFLD(10),CIOFLD(10)
+      CHARACTER*8 CINFLD, CIOFLD
+      DATA SLOPDG/2.0/
+C      DATA EPS/1.E-8/
+      DATA DTR /0.0174533/
+      DATA ICOPLKP,IRHIDN/-1,-1/
+      
+C
+C        FUNCTIONS FOR CONVERTING (X,Y) GRID TO RADAR SPACE
+C
+      FXC(X,Y) = ((ACSF*X) - (ASNF*Y)) + XORTR
+      FYC(X,Y)=  ((ASNF*X) + (ACSF*Y)) + YORTR
+
+C
+C        CHECK IF REORDERING IS NECESSARY
+C
+      IF (IOP.EQ.3) THEN
+C
+C     DO A TEMPORARY AXIS SWITCH TO FOOL CRTOUT
+C
+         T1=Y1
+         T2=Y2
+         TD=YD
+
+         Y1=Z1
+         Y2=Z2
+         YD=ZD
+
+         Z1=T1
+         Z2=T2
+         ZD=TD
+
+         NT=NY
+         NY=NZ
+         NZ=NT
+         
+         XORG=0.0
+         YORG=ZRAD
+         ZRAD=0.0
+         
+      ELSE IF (IOP.EQ.2) THEN
+C
+C     IF RHI SCANS, X->Z, Y->X, Z->Y TO TAKE ADVANTAGE OF EXISTING COPLANE
+C     INTERPOLATION CODE.
+C
+         T1=X1
+         T2=X2
+         TD=XD
+
+         X1=Y1
+         X2=Y2
+         XD=YD
+         
+         Y1=Z1
+         Y2=Z2
+         YD=ZD
+
+         Z1=T1
+         Z2=T2
+         ZD=TD
+
+         NT=NX
+         NX=NY
+         NY=NZ
+         NZ=NT
+
+         IF (ANGXAX.NE.90.0) THEN
+            DHETA=(ANGXAX-90.0)*DTR
+            XORR=FLOAT(ID(47))/100.*COS(DHETA) - FLOAT(ID(48))/100.
+     X           *SIN(DHETA)
+            YORR=FLOAT(ID(47))/100.*SIN(DHETA) + FLOAT(ID(48))/100.
+     X           *COS(DHETA)
+         ELSE
+            XORR=FLOAT(ID(47))/100.
+            YORR=FLOAT(ID(48))/100.
+         END IF
+
+         TORG=XORR
+         XORG=YORR
+         YORG=ZRAD
+         ZRAD=TORG
+      END IF
+
+      IF(ICRTST.EQ.0.AND.INPTST.EQ.0.AND.ICOPLKP.EQ.ICOPLANE.AND.
+     X     ((ICOPLANE.EQ.4.AND.IRHIDN.EQ.1) .OR. ICOPLANE.NE.4)) RETURN
+
+      IF (IOP.EQ.1) THEN
+C
+C     FOR RHI SCANS, SPECIAL MODS HAD TO BE INTRODUCED TO DEAL WITH THE
+C     FIXED ANGLE CROSSING 90 OR 270. THIS CODE IS FOR THAT PURPOSE.
+C
+         T1=X1
+         T2=X2
+         TD=XD
+         
+         X1=Z1
+         X2=Z2
+         XD=ZD
+
+         Z1=Y1
+         Z2=Y2
+         ZD=YD
+         
+         Y1=T1
+         Y2=T2
+         YD=TD
+
+         NT=NX
+         NX=NZ
+         NZ=NY
+         NY=NT
+
+         IF (ANGXAX.NE.90.0) THEN
+            DHETA=(ANGXAX-90.0)*DTR
+            XORR=FLOAT(ID(47))/100.*COS(DHETA) - FLOAT(ID(48))/100.
+     X           *SIN(DHETA)
+            YORR=FLOAT(ID(47))/100.*SIN(DHETA) + FLOAT(ID(48))/100.
+     X           *COS(DHETA)
+         ELSE
+            XORR=FLOAT(ID(47))/100.
+            YORR=FLOAT(ID(48))/100.
+         END IF
+
+         TORG=XORR
+         XORG=ZRAD
+         ZRAD=YORR
+         YORG=TORG
+         IRHIDN=-1
+
+      END IF
+
+      ICOPLKP=ICOPLANE
+      INPTST=0
+      ICRTST=0
+      IF (ICOPLANE.EQ.4) THEN
+         ANGXAXT=ANGXAX
+         ANGXAX=90.0
+      END IF
+      IF (IOP.EQ.2) IRHIDN=1
+C
+C        ATR- DEGREES TO RADIANS CONVERSION FACTOR
+C        RTA- RADIANS TO DEGREES CONVERSION FACTOR
+C
+      ATR=ATAN(1.)/45.
+      RTA=1./ATR
+      IZAD=360. * UNSCAZ
+C
+C        COMPUTE BEGINNING AND ENDING AZIMUTH OF CARTESIAN COORDINATE
+C             SYSTEM RELATIVE TO THE RADAR
+C
+      ANGR=AMOD((450.-ANGXAX),360.)*ATR
+      IF (ICOPLANE.NE.5) THEN
+         ASNF=SIN(ANGR)
+         ACSF=COS(ANGR)
+      ELSE
+         ASNF=0.
+         ACSF=1.
+      END IF
+C
+C        XORTR,YORTR IS LOWER LEFT CORNER OF CARTESIAN COORDINATE SYSTEM
+C                    RELATIVE TO THE RADAR.
+C
+      
+      XORTR = X1*ACSF - Y1*ASNF - XORG
+      YORTR = X1*ASNF + Y1*ACSF - YORG
+
+
+
+      NXY=NX*NY
+C
+C        AZLOW- CORRECTION FACTOR FOR 360 DEGREE CROSSOVER
+C             0- IF NO CROSSOVER,  180- IF CROSSOVER EXISTS
+C
+      AZLOW=0.0
+      XLL=FXC(0.,0.)
+      YLL=FYC(0.,0.)
+      XTL=FXC(0.,Y2-Y1)
+      YTL=FYC(0.,Y2-Y1)
+      XTR=FXC(X2-X1,Y2-Y1)
+      YTR=FYC(X2-X1,Y2-Y1)
+      XLR=FXC(X2-X1,0.)
+      YLR=FYC(X2-X1,0.)
+C  360 SCANS ONLY
+      IF (IFOR36.NE.0) GOTO 2
+      IS360=.FALSE.
+      XRAD= -ACSF*XORTR-ASNF*YORTR + X1
+      YRAD=  ASNF*XORTR-ACSF*YORTR + Y1
+      IF(XRAD.LT.X1.OR.XRAD.GT.X2.OR.YRAD.LT.Y1.OR.YRAD.GT.Y2) GO TO 3
+ 2    CONTINUE
+      IS360=.TRUE.
+      LOWAZ=0
+      MINAZ=0
+      MAXAZ=IZAD
+      GO TO 10
+    3 CONTINUE
+C  SECTOR SCANNING ONLY
+      AZC(1)=ATAN2(XLL,YLL)*RTA
+      AZC(2)=ATAN2(XTL,YTL)*RTA
+      AZC(3)=ATAN2(XTR,YTR)*RTA
+      AZC(4)=ATAN2(XLR,YLR)*RTA
+      AZ1=1000.
+      AZ2=-1000.
+      DO 4 I=1,4
+      IF(AZC(I).LT.0.0) AZC(I)=AZC(I)+360.
+      IF(AZC(I).LT.AZ1) AZ1=AZC(I)
+      IF(AZC(I).GT.AZ2) AZ2=AZC(I)
+    4 CONTINUE
+C
+C        CHECK FOR 360 DEGREE CROSSOVER
+C
+      IF(AZ2-AZ1.LE.180.) GO TO 6
+      AZ1=1000.
+      AZ2=-1000.
+      DO 5 I=1,4
+      IF(AZC(I).GT.180.) AZC(I)=AZC(I)-360.
+      IF(AZC(I).LT.AZ1) AZ1=AZC(I)
+      IF(AZC(I).GT.AZ2) AZ2=AZC(I)
+    5 CONTINUE
+      IF(AZ1.LT.0.0) AZ1=AZ1+360.
+      IF(AZ2.LT.0.0) AZ2=AZ2+360.
+      AZLOW=180.
+      GO TO 8
+    6 CONTINUE
+      IF(AZ1-SLOPDG.GE.0.0) GO TO 7
+      AZLOW=270.
+      GO TO 8
+    7 CONTINUE
+      IF(AZ2+SLOPDG.LE.360.) GO TO 8
+      AZLOW=90.
+    8 CONTINUE
+      IF(AZ1.LT.AZLOW) AZ1=AZ1+360.
+      IF(AZ2.LT.AZLOW) AZ2=AZ2+360.
+      AZTL=AMIN1(AZ1,AZ2)
+      AZTR=AMAX1(AZ1,AZ2)
+      MINAZ=(AZTL-SLOPDG)*UNSCAZ+0.5
+      MAXAZ=(AZTR+SLOPDG)*UNSCAZ
+      LOWAZ=AZLOW*UNSCAZ
+   10 CONTINUE
+C
+C        CALCULATE AND CONVERT CARTESIAN COORDINATES TO SPHERICAL POLAR
+C             SYSTEM RELATIVE TO RADAR
+C
+C
+C        OPEN DESTINATION FILE OF CONVERTED CARTESIAN LOCATIONS AND
+C             INITIALIZE HOUSEKEEPING TABLE FOR THIS VOLUME
+C
+      ICTAB(1)=0
+      ICTAB(2)=0
+      ICTAB(3)=0
+      ICTAB(4)=0
+      N=0
+      Y= -YD
+
+      DO 15 J=1,NY
+      Y=Y+YD
+      YTRM1=XORTR-ASNF*Y
+      YTRM2=YORTR+ACSF*Y
+      X= -XD
+      DO 15 I=1,NX
+      X=X+XD
+      XT=ACSF*X+YTRM1
+      YT=ASNF*X+YTRM2
+C  360 SCANS ONLY
+      IF(ABS(XT).LT.0.1.AND.ABS(YT).LT.0.1) GO TO 15
+      AZ=ATAN2(XT,YT)*RTA
+      IF(AZ.LT.AZLOW) AZ=AZ+360.
+      IAZ=AZ*UNSCAZ+0.5
+      IF(IAZ.LT.LOWAZ) IAZ=IAZ+IZAD
+      N=N+1
+      CALL IPUTCP(ICART(N),IAZ,I,J)
+   15 CONTINUE
+C
+C        SORT (X,Y) LOCATIONS IN INCREASING AZIMUTH
+C
+      CALL SINSRT(ICART,1,N)
+C
+C        GENERATE TABLES AND IF NECESSARY, WRITE OUT TO DISK
+C
+      K1=1
+      K2=NPREC
+      IF(K2.GT.N) K2=N
+      KB=K2-K1+1
+      ICTAB(1)=1
+      ICTAB(2)=KB
+      CALL IGETCP2(ICART(K1),ICTAB(3),IX,IY)
+      CALL IGETCP2(ICART(K2),ICTAB(4),IX,IY)
+      IF (IOP.EQ.3) THEN
+C
+C     CONVERT GRID SPECS BACK TO ORIGINAL ONES
+C
+         T1=Y1
+         T2=Y2
+         TD=YD
+         
+         Y1=Z1
+         Y2=Z2
+         YD=ZD
+
+         Z1=T1
+         Z2=T2
+         ZD=TD
+
+         NT=NY
+         NY=NZ
+         NZ=NT
+
+         YORG=0.0
+
+
+      ELSE IF (IOP.EQ.1) THEN
+C
+C     SAVE ANGLE INFO IN SEPARATE VARIABLES
+C
+         LOWAZ2=LOWAZ
+         MAXAZ2=MAXAZ
+         MINAZ2=MINAZ
+
+C
+C     CONVERT GRID SPECS BACK TO ORIGINAL ONES
+C
+         T1=X1
+         T2=X2
+         TD=XD
+
+         X1=Y1
+         X2=Y2
+         XD=YD
+
+         Y1=Z1
+         Y2=Z2
+         YD=ZD
+
+         Z1=T1
+         Z2=T2
+         ZD=TD
+
+         NT=NX
+         NX=NY
+         NY=NZ
+         NZ=NT
+
+         TORG=XORG
+         XORG=YORG
+         YORG=ZRAD
+         ZRAD=TORG
+
+         ANGXAX=ANGXAXT
+         IS360=.FALSE.
+      ELSE IF (IOP.EQ.2) THEN
+         ANGXAX=ANGXAXT
+
+C
+C     SHOULD NOT BE TRUE FOR RHI SCANS
+         IS360=.FALSE.
+      END IF
+
+      RETURN
+      END

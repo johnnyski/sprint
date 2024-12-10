@@ -1,0 +1,326 @@
+      SUBROUTINE TRPD(IDAT,IEL,IRNG,KZLV,IREF,IFLG,IVVAR,NST,MN,
+     X                NUMFILT,KZA)
+      INCLUDE 'SPRINT.INC'
+      PARAMETER (MAXEL=80,MAXIN=8500,NIOB=85000,NRHD=10)
+      PARAMETER (IDIM=64/WORDSZ)
+      DIMENSION Z(2),IDAT(1),IREF(1),IT(4),IVVAR(IDIM),KZA(3)
+      LOGICAL IS360
+      COMMON /IO/ KPCK(NIOB),IRAY(MAXIN,3),KZ(3),KZC,KZP,IDSNEW,ITMDIF,
+     X   ITIME(4),IBEGT(4),NSBM,NRDOPT,ILSTREC
+      COMMON /SCNDAT/ ELB(MAXEL),DEI(MAXEL),KDIR(MAXEL),KNDREC(MAXEL),
+     X   NEL,IEL1,IEL2,KEL,KPEL,ISD,ELTOL,RNOT,DRG,NG,MAXRD,CFAC(10)
+      COMMON/ADJUST/INFLD(10,3),SCLIF(10,2),NIF,IOFLD(10,3),SCLOF(10,2),
+     X   NOF,SCLAZ,SCLRNG,SCLEL,UNSCAZ,UNSCRG,UNSCEL,LOWAZ,IZAD,IS360,
+     X   MINAZ,MAXAZ,METSPC(10),IWFLD(10),NFLI,SCLNYQ,UNSNYQ
+      COMMON /FNAMES/ CINFLD(10),CIOFLD(10)
+      COMMON /NGATES/ NRGC,NRGP
+      CHARACTER*8 CINFLD, CIOFLD
+      EQUIVALENCE (METSPC(1),METH),(METSPC(2),NGAVG),(METSPC(3),MINGN),
+     X            (METSPC(4),MXREST),(METSPC(5),IGSPAC),
+     X            (METSPC(7),MGC1),(METSPC(8),MGC0),(METSPC(9),MINGC)
+      DATA IBAD/-32768/
+C      DATA VELMAX/60.0/
+      DATA IFRST/0/
+      DATA ATR/ 0.017453293/
+C      DATA MASKCP/ O'1777777777777777777776' /
+      DATA MASK/O'177777'/
+      JPOS(J,K)= NRHD+J+(K-1)*NRGC
+      IRAYV(J,I,K)=IRAY((NRHD+J+(K-1)*(NRGC*ABS(KZP-I)+NRGP*
+     X     ABS(KZC-I))),I)
+
+C
+C     CREATE A BIT MASK USED FOR FLAGGING TYPE OF INTERPOLATION DONE
+C
+      IF (IFRST.EQ.0) THEN
+         MASKCP = 0
+         DO I=1,(WORDSZ/16)
+            MASKCP = ICEDOR(MASKCP,ICEDSHFT(MASK,(I-1)*16))
+         END DO
+         MASKCP = MASKCP - 1
+         IFRST=1
+      END IF
+
+      DO I=1,IDIM
+         IVVAR(I)=0
+      END DO
+
+      RGKM=IRNG*SCLRNG
+      RGNUM=(RGKM-RNOT)/DRG + 1.0
+      NST=0
+      I1=RGNUM
+      I2=I1+1
+      J=RGNUM+0.5
+      D1=1.0
+      D2=1.0
+      MXRGD=ABS(RGNUM-FLOAT(J)) * IGSPAC
+      MXAZD=0
+      IF(KZA(KZP).EQ.KZA(KZC)) GO TO 3
+      D1=IABS(KZA(KZP)-KZLV)
+      D2=IABS(KZA(KZC)-KZLV)
+      MXAZD=IRNG*SIN(AMIN1(D1,D2)*SCLAZ*ATR)
+    3 CONTINUE
+      K=KZP
+      IF(D1.GT.D2) K=KZC
+C      IVVAR=0
+      IF(METH.NE.1) GO TO 60
+      DIV=1./(D1+D2)
+      DFRAC=D1*DIV
+      IF (DFRAC.GE.1.0) DFRAC=D2*DIV
+      IF(NGAVG.NE.0) GO TO 30
+C
+C        PERFORM WEIGHTED BI-LINEAR INTERPOLATION (4 PTS. ONLY)
+C
+      FPDF=4.0+DFRAC
+      W1=I2-RGNUM
+      W2=RGNUM-I1
+      DO 20 I=1,NFLI
+         L=IWFLD(I)
+         IDAT(I)=ITMDIF
+         IF(L.LT.0) GO TO 20
+         N1=JPOS(I1,L)
+         N2=N1+1
+         NEAR=JPOS(J,L)
+         IF(IRAYV(I1,1,L).EQ.IBAD.OR.IRAYV(I1+1,1,L).EQ.IBAD .OR.
+     X      IRAYV(I1,2,L).EQ.IBAD.OR.IRAYV(I1+1,2,L).EQ.IBAD) GO TO 19
+C
+C        PROCEED WITH INTERPOLATION- ALL POINTS ARE GOOD
+C
+         IF(INFLD(L,3).NE.0) GO TO 5
+         Z1=IRAYV(I1,KZC,L)*W1+IRAYV(I1+1,KZC,L)*W2
+         Z2=IRAYV(I1,KZP,L)*W1+IRAYV(I1+1,KZP,L)*W2
+         IDEST=NINT((Z1*D1+Z2*D2) * DIV)
+         IDAT(I)=ICEDOR(IDEST,1)
+         GO TO 20
+ 5       CONTINUE
+      IF(INFLD(L,2).GT.2) GO TO 10
+C
+C        CONVERT 10(LOG) FIELD TO LINEAR UNITS
+C
+         SFAC=0.1*SCLIF(L,2)
+         Z1=EXP(IRAYV(I1,KZC,L)*SFAC)*W1+EXP(IRAYV(I1+1,KZC,L)*SFAC)*W2
+         Z2=EXP(IRAYV(I1,KZP,L)*SFAC)*W1+EXP(IRAYV(I1+1,KZP,L)*SFAC)*W2
+         IDEST=NINT(ALOG((Z1*D1+Z2*D2)*DIV)*SCLIF(L,1)*10.)
+         IDAT(I)=ICEDOR(IDEST,1)
+         GO TO 20
+   10 CONTINUE
+C
+C        UNFOLD VELOCITIES FIRST
+C
+         NYQ=INFLD(L,3)
+         NYQT2=NYQ*2
+      MAXVEL=NYQ
+      VDIV=DIV*512.0
+      IF (IFLG.EQ.0 .OR. MN.EQ.-25) THEN
+         MN=NINT((FLOAT(IRAYV(J,K,L))/FLOAT(MAXVEL))*UNSNYQ)
+         IF (IABS(MN).GT.15 .AND. NUMFILT.EQ.0) THEN
+            CALL TPQERX(328,0)
+            GO TO 70
+         END IF
+      END IF
+      IF (IABS(MN).GT.15 .AND. NUMFILT.EQ.0) THEN
+         CALL TPQERX(328,0)
+         GO TO 70
+      END IF
+         ISTAN=(MAXVEL*MN)*SCLNYQ
+         IT(1)=IRAYV(I1,KZC,L)
+         IT(2)=IRAYV(I1+1,KZC,L)
+         IT(3)=IRAYV(I1,KZP,L)
+         IT(4)=IRAYV(I1+1,KZP,L)
+c         IVVAR=0
+         SUM=0.0
+         SUMSQ=0.0
+         DO 15 M=1,4
+            IDIF=ISTAN-IT(M)
+C
+            IF(IABS(IDIF).GT.NYQ) THEN
+C
+            KN=(IDIF+ISIGN(NYQ-1,IDIF))/NYQT2
+            IT(M)=IT(M)+KN*NYQT2
+C
+            END IF
+C
+      VELOCU=IT(M)*SCLIF(L,2)
+      SUM=SUM+VELOCU
+      SUMSQ=SUMSQ+VELOCU*VELOCU
+   15    CONTINUE
+      CALL IVVPCK(IVVAR,FPDF,SUM,SUMSQ)
+         Z1=IT(1)*W1+IT(2)*W2
+         Z2=IT(3)*W1+IT(4)*W2
+C         IDAT(I)=(NINT((Z1*D1+Z2*D2)*VDIV/64.)*32+(16+MN))*2+1
+         IDEST=NINT((Z1*D1 + Z2*D2) *DIV)
+         IDAT(I)=ICEDOR(IDEST,1)
+         GO TO 20
+   19 CONTINUE
+C
+C        SELECT THE CLOSEST POINT IF WITHIN RANGE
+C
+         IDAT(I)=IBAD
+         IF(MXRGD.GT.MXREST.OR.MXAZD.GT.MXREST) GO TO 20
+         IDAT(I)=ICEDAND(IRAYV(J,K,L),MASKCP)
+   20 CONTINUE
+      RETURN
+   30 CONTINUE
+C
+C        PERFORM SMOOTHING ALONG RANGE BEFORE INTERPOLATING
+C
+      NGUSE=NINT(RGKM*(FLOAT(MGC1)*0.001) + (FLOAT(MGC0)*0.001))
+       MING=MAX0(MINGN,NGUSE-MINGC)
+      NGUSE=MAX0(NGUSE,NGAVG)
+      N=NGUSE/2
+      IF(NGUSE-N*2.EQ.0) THEN
+C       EVEN NUMBER
+        I1=I2-N
+        I2=I1+NGUSE-1
+      ELSE
+C       ODD NUMBER
+        I1=J-N
+        I2=J+N
+      END IF
+      IF(I1.LT.1) I1=1
+      IF(I2.GT.MIN(NRGC,NRGP)) I2=MIN(NRGC,NRGP)
+      DO 50 I=1,NFLI
+         L=IWFLD(I)
+         IDAT(I)=ITMDIF
+         IF(L.LT.0) GO TO 50
+         N1=JPOS(I1,L)
+         N2=JPOS(I2,L)
+         NFG=JPOS(0,L)
+         NEAR=JPOS(J,L)
+         IF(INFLD(L,3).NE.0) GO TO 35
+C
+C        NO ADJUSTMENTS TO THE DATA ARE NECESSARY
+C
+         DO 32 KB=1,2
+            KS=0
+            IDR=0
+            Z(KB)=0.0
+            DO 31 N=N1,N2
+               IF(IRAYV(I1+(N-N1),KB,L).EQ.IBAD) GO TO 31
+               KS=KS+1
+               IDR=IDR+N-NFG
+               Z(KB)=Z(KB)+IRAYV(I1+(N-N1),KB,L)
+   31       CONTINUE
+            IF(KS.LT.MING) GO TO 49
+            IDR=(ABS((FLOAT(IDR)/FLOAT(KS))-RGNUM))*IGSPAC
+            IF(IDR.GT.MXREST) GO TO 49
+            Z(KB)=Z(KB)/FLOAT(KS)
+   32    CONTINUE
+         IDEST=NINT((Z(KZC)*D1+Z(KZP)*D2)*DIV)
+         IDAT(I)=ICEDOR(IDEST,1)
+         GO TO 50
+   35 CONTINUE
+      IF(INFLD(L,2).GT.2) GO TO 40
+C
+C        CONVERT 10(LOG) FIELD TO LINEAR POWER UNITS FIRST
+C
+         SFAC=0.1*SCLIF(L,2)
+         DO 38 KB=1,2
+            KS=0
+            IDR=0
+            Z(KB)=0.0
+            DO 37 N=N1,N2
+               IF(IRAYV(I1+(N-N1),KB,L).EQ.IBAD) GO TO 37
+               KS=KS+1
+               IDR=IDR+N-NFG
+               Z(KB)=Z(KB)+EXP(IRAYV(I1+(N-N1),KB,L)*SFAC)
+   37       CONTINUE
+            IF(KS.LT.MING) GO TO 49
+            IDR=(ABS((FLOAT(IDR)/FLOAT(KS))-RGNUM))*IGSPAC
+            IF(IDR.GT.MXREST) GO TO 49
+            Z(KB)=Z(KB)/FLOAT(KS)
+   38    CONTINUE
+         IDEST=NINT(ALOG((Z(KZC)*D1+Z(KZP)*D2)*DIV)*SCLIF(L,1)*10.)
+         IDAT(I)=ICEDOR(IDEST,1)
+         GO TO 50
+   40 CONTINUE
+C
+C        UNFOLD VELOCITIES FIRST
+C
+         NYQ=INFLD(L,3)
+         NYQT2=NYQ*2
+         MAXVEL=NYQ
+         VDIV=DIV*512.0
+         IF (IFLG.EQ.1 .AND. MN.NE.-25) THEN
+            ISTAN=(MAXVEL*MN)*SCLNYQ
+         ELSE IF(IRAYV(J,K,L).NE.IBAD .AND. (IFLG.EQ.0 .OR. MN.EQ.-25))
+     X           THEN
+            MN=NINT((FLOAT(IRAYV(J,K,L))/FLOAT(MAXVEL))*UNSNYQ)
+            IF(IABS(MN).GT.15 .AND. NUMFILT.EQ.0) THEN
+               CALL TPQERX(328,0)
+               GO TO 70
+            END IF
+            ISTAN=(MAXVEL*MN)*SCLNYQ
+         ELSE
+            ISTAN=IBAD
+         END IF
+c         IF(IABS(MN).GT.15) THEN
+c            CALL TPQERX(328,0)
+c            GO TO 70
+c         END IF
+C      IVVAR=0
+      CNT=0.0
+      SUM=0.0
+      SUMSQ=0.0
+         DO 42 KB=1,2
+            KS=0
+            IDR=0
+            Z(KB)=0.0
+            DO 41 N=N1,N2
+               IF(IRAYV(I1+(N-N1),KB,L).EQ.IBAD) GO TO 41
+               KS=KS+1
+               IDR=IDR+N-NFG
+               IF(ISTAN.EQ.IBAD) THEN
+                  MN=NINT((FLOAT(IRAYV(I1+(N-N1),KB,L))/FLOAT(MAXVEL))*
+     X                 UNSNYQ)
+                  IF (IABS(MN).GT.15 .AND. NUMFILT.EQ.0) THEN
+                     CALL TPQERX(328,0)
+                     GO TO 70
+                  END IF
+                  ISTAN=(MAXVEL*MN)*SCLNYQ
+               END IF
+               KN=0
+               IDIF=ISTAN-IRAYV(I1+(N-N1),KB,L)
+               IF(IABS(IDIF).GT.NYQ) KN=(IDIF+ISIGN(NYQ-1,IDIF))/NYQT2
+               VELOCU=(IRAYV(I1+(N-N1),KB,L)+KN*NYQT2)*SCLIF(L,2)
+               CNT=CNT+1.0
+               SUM=SUM+VELOCU
+               SUMSQ=SUMSQ+VELOCU*VELOCU
+               Z(KB)=Z(KB)+IRAYV(I1+(N-N1),KB,L)+KN*NYQT2
+   41       CONTINUE
+            IF(KS.LT.MING) GO TO 49
+            IDR=(ABS((FLOAT(IDR)/FLOAT(KS))-RGNUM))*IGSPAC
+            IF(IDR.GT.MXREST) GO TO 49
+            Z(KB)=Z(KB)/FLOAT(KS)
+   42    CONTINUE
+C         IDAT(I)=(NINT((Z(KZC)*D1+Z(KZP)*D2)*VDIV/64.)*32+(16+MN))*2+1
+         IDEST=NINT((Z(KZC)*D1 + Z(KZP)*D2)*DIV)
+         IDAT(I)=ICEDOR(IDEST,1)
+         CALL IVVPCK(IVVAR,CNT+DFRAC,SUM,SUMSQ)
+         GO TO 50
+   49 CONTINUE
+C
+C        BAD DATA FOUND- SELECT CLOSEST POINT INSTEAD OF INTERPOLATING
+C
+         IDAT(I)=IBAD
+         IF(MXRGD.GT.MXREST.OR.MXAZD.GT.MXREST) GO TO 50
+         IDAT(I)=ICEDAND(IRAYV(J,K,L),MASKCP)
+   50 CONTINUE
+      RETURN
+   60 CONTINUE
+C
+C        METHOD 2- SELECT THE CLOSEST POINT FOR ALL FIELDS/LOCATIONS
+C
+      DO 65 I=1,NFLI
+         L=IWFLD(I)
+         IDAT(I)=ITMDIF
+         IF(L.LT.0) GO TO 65
+         IDAT(I)=IBAD
+         IF(MXRGD.GT.MXREST.OR.MXAZD.GT.MXREST) GO TO 65
+         N=JPOS(J,IWFLD(I))
+         IDAT(I)=ICEDAND(IRAYV(J,K,L),MASKCP)
+   65 CONTINUE
+      RETURN
+70    CONTINUE
+      NST=1
+      RETURN
+      END

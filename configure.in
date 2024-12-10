@@ -1,0 +1,47 @@
+dnl Process this file with autoconf to produce a configure script.
+AC_INIT
+AC_CONFIG_SRCDIR([src/CCOSIN.c])
+
+AM_INIT_AUTOMAKE(sprint, v1.23)
+AM_CONFIG_HEADER(config.h)
+
+dnl Default for GVS and friends.
+AC_PREFIX_DEFAULT(/usr/local/trmm/GVBOX)
+
+dnl Checks for programs.
+AC_PROG_CC
+AC_PROG_F77
+AC_PROG_INSTALL
+AC_C_BIGENDIAN
+
+dnl Add "-static" to FFLAGS for IRIX OS.
+# Note: AC_CANONICAL_SYSTEM is obsolete, but works.  AC_CANONICAL_TARGET is
+#   preferred.
+#AC_CANONICAL_TARGET([])
+AC_CANONICAL_SYSTEM
+case "$target" in
+    *irix*|*IRIX*) FFLAGS='-g -static -O2'
+                   F77=f77;;
+esac
+
+dnl If we're using g77, add the equivalent of "-static" to FFLAGS.
+if test "$F77" = g77; then
+    FFLAGS="$FFLAGS -fno-automatic"
+fi
+
+dnl Checks for libraries.
+AC_CHECK_LIB(m, sin)
+
+dnl Checks for header files.
+AC_HEADER_STDC
+AC_CHECK_HEADERS(fcntl.h unistd.h)
+
+dnl Checks for typedefs, structures, and compiler characteristics.
+AC_STRUCT_TM
+
+dnl Checks for library functions.
+AC_TYPE_SIGNAL
+AC_FUNC_STRFTIME
+
+AC_CONFIG_FILES([Makefile src/Makefile])
+AC_OUTPUT

@@ -1,0 +1,164 @@
+      SUBROUTINE CRTSET(KRD,MAXPLN,MXCRT,ICRTST,MAXYZ)
+C
+C        SETS THE SPECIFICATIONS FOR THE GRIDS TO WHICH
+C        INTERPOLATION IS TO BE DONE; THE GRIDS CAN EITHER
+C        BE A STANDARD 3-D CARTESIAN GRIDS OR 2-D CART. GRIDS
+C        ON COPLANES
+C
+C   VARIABLE  DESCRIPTION                  FIELD  NOTES
+C   --------  -----------                  -----  -----
+C
+C   KOMM      'GRI'                         P1    COMMAND
+C   X1        STARTING X                    P2    IN KM
+C   X2        ENDING X                      P3    IN KM
+C   Y1        STARTING Y                    P4    IN KM
+C   Y2        ENDING Y                      P5    IN KM
+C   XYD       DELTA(SPACING)FOR X ! Y AXES  P6    IN KM
+C   Z1        STARTING Z OR COPLANE ANGLE   P7    IN (KM + MSL)
+C   Z2        ENDING Z OR COPLANE ANGLE     P8    IN (KM + MSL)
+C   ZD        DELTA (SPACING) FOR 3RD CRD.  P9    IN KM
+C   ANGXAX    ANGLE OF X-AXIS,              P10   IN DEG,
+C                CLOCKWISE FROM NORTH                ROTATED ABOUT THE
+C                                                    LOWER LEFT CORNER
+C                                                    OF THE CARTESIAN
+C                                                    COORDINATE SYSTEM
+C
+C
+      COMMON /TRANS/ X1,X2,XD,Y1,Y2,YD,Z1,Z2,ZD,NX,NY,NZ,XORG,YORG,
+     X   ANGXAX,ZRAD,AZLOW,BAD,ASNF,ACSF,IAXORD(3),NPLANE,EDIAM
+      COMMON /AXUNIT/ IFIXAX,IUNAXS,LABAXS(3,3),SCLAXS(3,3)
+      COMMON /SCAN/ ICOPLANE,IFLGBAS,IPPI
+      CHARACTER*8 KRD(10)
+C
+C        
+C
+      DATA EPS/1.E-3/
+      DATA MAXAX/255/
+      ICRTST=1
+C     IPPI VARIABLE INDICATES IF INTERPOLATIONS ARE TO BE 2-D
+C     AND THEN PROJECTED INTO PLANES
+      IPPI=0
+      READ (KRD,101)X1,X2,Y1,Y2,XYD,Z1,Z2,ZD,ANGXAX
+ 101  FORMAT(/F8.0/F8.0/F8.0/F8.0/F8.0/F8.0/F8.0/F8.0/F8.0)
+C101  FORMAT(8X,9F8.0)
+
+C
+C     SET COPLANE FLAG DEPENDING ON WHAT PLANES WE'RE INTERP. TO
+C
+      IF (KRD(1).EQ.'GRIDCPL' .AND. Z1.EQ.0.0 .AND. Z2.EQ.0.0
+     +    .AND. ZD.EQ.0.0) THEN
+         ICOPLANE=1
+      ELSE IF (KRD(1).EQ.'GRIDCPL' .AND. (Z1.NE.0.0 .OR. Z2.NE.0.0
+     +         .OR. ZD.NE.0.0)) THEN
+         ICOPLANE=2
+      ELSE IF (KRD(1).EQ.'GRID' .OR. KRD(1).EQ.'GRIDXYZ') THEN
+         ICOPLANE=0
+      ELSE IF (KRD(1).EQ.'GRIDPPI') THEN
+         ICOPLANE=0
+         IPPI=1
+      END IF
+
+      IF(XYD.LE.0.0) XYD=1.0
+      XD = XYD
+      YD = XYD
+      NX=(X2-X1)/XYD+EPS+1.0
+      NY=(Y2-Y1)/XYD+EPS+1.0
+      REELX=(X2-X1)/XYD
+      REELY=(Y2-Y1)/XYD
+      NIX=REELX+EPS
+      NIY=REELY+EPS
+      RTSX=FLOAT(NIX)+EPS
+      RTSY=FLOAT(NIY)+EPS
+      IF (REELX.GT.RTSX .OR. REELY.GT.RTSY) GO TO 9
+      GO TO 10
+ 9    CONTINUE
+      PRINT 201
+ 201  FORMAT (/'  +++ ERROR +++'/
+     X      '  AXES ARE NOT EVENLY DIVISIBLE BY SPACING INTERVAL'/
+     X      '         PLEASE RESPECIFY')
+      STOP 3332
+ 10   CONTINUE
+      IF(NX.GT.0.AND.NX.LE.MAXAX.AND.NY.GT.0.AND.NY.LE.MAXAX)GO TO 15
+      PRINT 301, MAXAX
+  301 FORMAT(/' +++  ERROR  +++'/
+     X       ' NUMBER OF POINTS ALONG AN AXIS MUST BE IN THE RANGE OF'
+     X     /'   1 TO ',I3,'.  PLEASE RE-SPECIFY THE AXIS COORDINATES.')
+      STOP
+   15 CONTINUE
+C       SCALE X AND Y AXIS SPECIFICATIONS
+      X1=X1/SCLAXS(1,IUNAXS)
+      X2=X2/SCLAXS(1,IUNAXS)
+      XYD=XYD/SCLAXS(1,IUNAXS)
+      Y1=Y1/SCLAXS(2,IUNAXS)
+      Y2=Y2/SCLAXS(2,IUNAXS)
+      XYD=XYD/SCLAXS(2,IUNAXS)
+C
+C     ONLY EXECUTE THE NEXT LINES IF NOT INTERP. TO COPLANE OR IF
+C     INTERPOLATING TO USER SPECIFIED COPLANES
+C
+      IF (ICOPLANE.EQ.0 .OR. ICOPLANE.EQ.2 .OR. ICOPLANE.EQ.3 .OR.
+     X     ICOPLANE.EQ.4 .OR. ICOPLANE.EQ.5) THEN
+         IF(ZD.LE.0.0) ZD=1.0
+         RZ=(Z2-Z1)/ZD+1.0+EPS
+         NZ=RZ
+         IF(ABS(FLOAT(NZ)-RZ).GT.0.01) GO TO 9
+      ELSE IF (ICOPLANE.EQ.1) THEN
+         NZ=0
+      END IF
+C        SCALE VERTICAL AXIS TO PROPER UNITS
+      Z1=Z1/SCLAXS(3,IUNAXS)
+      Z2=Z2/SCLAXS(3,IUNAXS)
+      ZD=ZD/SCLAXS(3,IUNAXS)
+      IF (ANGXAX.EQ.0.0 .AND. ICOPLANE.NE.0) THEN
+         WRITE(*,*)'+++ ERROR: X-AXIS ORIENTATION ANGLE MUST BE',
+     X             ' SPECIFIED FOR COPLANE COORDINATE SYSTEMS +++'
+         STOP
+      END IF
+      IF(ANGXAX.LE.0.0) ANGXAX=90.0
+      IF(ANGXAX.GT.0.0.AND.ANGXAX.LT.270.0) GO TO 45
+      PRINT 121
+  121 FORMAT(/' +++  ERROR  +++'/
+     X        ' ANGLE MUST BE IN THE RANGE 0-270 DEGREES ')
+      STOP
+   45 CONTINUE
+C        CHECK IF ANYTHING IS OUT OF RANGE AND RETURN
+      IF(NZ.LE.MXCRT) GO TO 95
+      PRINT 114, NZ, MXCRT
+  114 FORMAT(/' +++  ERROR  +++'/
+     X       ' NUMBER OF LEVELS=',I6,' ...CANNOT EXCEED ',I6)
+      STOP
+   95 CONTINUE
+      NPLANE=NX*NY
+      NTOTAL=NZ*NPLANE
+      IF(NTOTAL.LE.MAXYZ) GO TO 96
+      PRINT 112, NTOTAL,MAXYZ
+  112 FORMAT(/' +++  ERROR  +++'/
+     X ' NUMBER OF CARTESIAN PTS=',I8,' ... CANNOT EXCEED',I8)
+      STOP
+   96 CONTINUE
+      IF(NPLANE.LE.MAXPLN) GO TO 99
+      PRINT 115, NPLANE,MAXPLN
+  115 FORMAT(/' +++  ERROR  +++'/
+     X       ' NUMBER OF PTS/PLANE=',I6,' ...CANNOT EXCEED ',I6)
+      STOP
+   99 CONTINUE
+      PRINT 885
+885   FORMAT(//5X,'SUMMARY OF CARTESIAN COMMAND ')
+      PRINT 887
+887   FORMAT(5X,'------- -- --------- ------- ')
+      PRINT 888, X1,X2,XYD,NX,Y1,Y2,XYD,NY,Z1,Z2,ZD,NZ,ANGXAX
+888   FORMAT(/5X,'CARTESIAN COORDINATE SYSTEM SPECIFICATIONS: ',
+     X      //6X,'AXIS     MINIMUM (KM)     MAXIMUM (KM)   ',
+     X           '   DELTA (KM)    NO. OF PTS. ',
+     X       /6X,'----     ------------     ------------   ',
+     X           '   ----------    ----------- ',
+     X      //7X,' X',7X,F7.2,11X,F7.2,10X,F7.2,9X,I5
+     X       /7X,' Y',7X,F7.2,11X,F7.2,10X,F7.2,9X,I5
+     X       /7X,' Z',7X,F7.2,11X,F7.2,10X,F7.2,9X,I5
+     X      //6X,'AXIS ORDER IS   X  Y  Z',
+     X       /6X,'ANGLE OF THE X-AXIS RELATIVE TO NORTH: ',
+     X           F6.1,' DEGREES ',
+     X       /6X,'(X,Y)  AXES ARE SPECIFIED ',
+     X           'RELATIVE TO:  (0.00,0.00)'//)
+      RETURN
+      END

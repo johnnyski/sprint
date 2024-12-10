@@ -1,0 +1,48 @@
+README for NCAR SPRINT v1.22 (11/30/06)
+=============================================
+
+NCAR SPRINT interpolator.
+
+Note:  This package is different from NCAR's distribution.  It does not
+       require the NCAR graphics package.  All routines that SPRINT used
+       from the NCAR graphics library, namely the bit manipulation routines,
+       are included directly.
+
+       The source code in this package is configured for Linux, particularly
+       files cedric.h and dorade.h.  The NCAR distribution includes versions
+       of this code for other platforms which are not included in this package.
+
+
+Installation Instructions:
+--------------------------
+
+1. configure
+
+   The default install directory is /usr/local/trmm/GVBOX (the --prefix option)
+
+2. make install
+
+Example:
+
+   configure --prefix=/usr/local/trmm/GVBOX
+   make install
+
+
+Documentation:
+--------------
+
+Documentation for sprint can be found on the UCAR Data Analysis Software
+web site at http://www.mmm.ucar.edu/pdas/pdas.html.  Click on "Radar Data",
+then click "SPRINT".
+
+
+Software Requirements:
+----------------------
+
+None.
+
+
+Questions:
+---------
+Please send e-mail to TRMM Office help at help@trmm.gsfc.nasa.gov.
+

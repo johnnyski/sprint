@@ -1,0 +1,101 @@
+      SUBROUTINE WRRYDK(KPKBUF,KUNBUF,NST,IUN,IFLG,NLEN)
+C
+C        WRITES A BLOCK OF 16 BIT INFORMATION INTO
+C        A BLOCK ON DISK
+C                 IFLG<0  => DISCARD BLOCK (RECORD)
+C                 IFLG=0  => NORMAL WRITE
+C                 IFLG>0  => FORCE ONTO DISK
+C
+C     IBEGREC  - RECORD LENGTH OF FIRST RECORD IN VOLUME
+C     ILSTREC  - RECORD LENGTH OF PREVIOUS RECORD
+C     NLEN     - RECORD LENGTH OF CURRENT RECORD
+C     IWRYBEG  - FLAG SET WHEN A NEW VOLUME IS STARTED
+C     IBEG     - FLAG SET WHEN A VOLUME IS FULLY WRITTEN
+C
+      PARAMETER (MAXBLK=85000,MAXLEN=2125)
+      COMMON /IO/KPCK(85000),KOUT(8500),IBUF(8500),NBUF(2125,4),
+     X     IZ8(17),IBEGREC
+      COMMON /INTIO/IBEG
+      COMMON /WRRY/ILSTREC,IWRYBEG
+      DIMENSION KPKBUF(ILSTREC),KUNBUF(NLEN)
+
+      IF (IFLG.LT.0) THEN
+         IWRYBEG=1
+         NST=0
+         RETURN
+      ELSE IF (IFLG.EQ.0) THEN
+         IF (IWRYBEG.EQ.1) THEN
+C
+C     INITIALIZE
+C
+            IWRYBEG=0
+            IBEGREC=NLEN+1
+            ILSTREC=IBEGREC
+            DO I=1,NLEN
+               KPKBUF(I+1)=KUNBUF(I)
+            END DO
+         ELSE
+C
+C     REGULAR WRITE
+C
+            KPKBUF(1)=NLEN+1
+            WRITE(IUN,ERR=100)KPKBUF
+            DO I=1,NLEN
+               KPKBUF(I+1)=KUNBUF(I)
+            END DO
+            ILSTREC=NLEN+1
+         END IF
+         NST=0
+         RETURN
+      ELSE IF (IFLG.LT.10) THEN
+C
+C     CLOSE OFF VOLUME
+C
+         WRITE(IUN,ERR=100)KPKBUF
+         NST=0
+         IBEG=1
+         RETURN
+      ELSE IF (IFLG.GT.10) THEN
+C
+C     NEED TO BACKUP TO DISCARD A SWEEP
+C
+         IFLG=IFLG-10
+         IF (IFLG.GT.1) THEN
+C
+C     IF SWEEP NUMBER GREATER THAN 1
+            DO I=1,NLEN+1
+               BACKSPACE(IUN,ERR=100)
+            END DO
+            READ(IUN)ILSTREC
+            CALL WRRYDK2(IUN,ILSTREC,KPKBUF)
+            BACKSPACE(IUN)
+            NST=0
+            RETURN
+         ELSE
+C
+C     IF FIRST SWEEP
+            DO I=1,NLEN-1
+               BACKSPACE(IUN,ERR=100)
+            END DO
+            IWRYBEG=1
+            NST=0
+            RETURN
+         END IF
+      END IF
+      
+ 100  NST=1
+      RETURN
+      END
+
+
+      SUBROUTINE WRRYDK2(IUN,ILSTREC,KPKBUF)
+C     NEEDED TO READ IN A RECORD OF LENGTH ILSTREC WORDS
+      DIMENSION KPKBUF(ILSTREC)
+
+      READ(IUN)KPKBUF
+      RETURN
+
+      END
+
+
+      

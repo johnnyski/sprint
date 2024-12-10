@@ -1,0 +1,144 @@
+sprint/CHANGES:
+
+v1.23 (01/12/07)
+---------------------
+1. Added Huntsville (KHTX) site to INPFIL.f.
+
+v1.22 (11/30/06)
+---------------------
+1. INPFIL.f: Now includes all NEXRAD sites.
+
+v1.21 (3/29/06)
+---------------------
+1. Added Sterling (KLWX) and Dover AFB (KDOX) sites to src/INPFIL.f.
+
+v1.20 (3/3/05)
+---------------------
+1. Changed configure.in to include compiler option '-fno-automatic' in FFLAGS
+   when compiler is g77.  This is like the '-static' option in other FORTRAN
+   compilers: it forces static storage of local variables.
+
+v1.19 (2/3/05)
+---------------------
+1. Added Los Angeles (KVTX) and Santa Ana Mountains (KSOX) sites to
+   src/INPFIL.f.
+
+v1.18 (10/20/03)
+---------------------
+1. Added Norfolk (KAKQ) site to src/INPFIL.f.
+
+v1.17 (10/6/03)
+---------------------
+1. Revised README concerning location of SPRINT documentation, and added note
+   about package's Linux specific code.
+2. Restored "cedric.h,v" and "dorade.h,v" in CVS repository to ensure their
+   inclusion in checkout.  These are adaptations by J. Merritt of files
+   from the linux subdirectory.
+
+v1.16 (9/9/03)
+---------------------
+1. Dave Makofski cleaned up nonstandard format statements in FORTRAN routines.
+2. Modified configure.in for autoconf 2.53.
+
+v1.15 (5/9/00)
+---------------------
+1. Put "FFLAGS = -g -static -O2" in configure.in; will go into Makefile build.
+2. Added Makefile.am for automake/configure.
+3. Copied current versions of  CEDLOG.f, cedric.h, dorade.h into sprint/src.
+4. Can now use "make dist" to build tar file for distribution.
+
+v1.14 (7/13/00)
+---------------------
+1. Edited README to include  FFLAGS = "-g -static" 
+2. Added new radar site numbers to src/INPFIL.f.
+
+v1.13 (12/21/99)
+---------------------
+1. Uses configure.
+2. Endianess is determined via configure.
+
+v1.12 (7/24/97)
+---------------------
+1. New radar site numbers.  These are in src/INPFIL.f.
+
+v1.11 (2/6/97)
+---------------------
+1. New intrinsics.c for linux.  This is for proper build with f2c/f77.
+
+
+v1.10 (1/16/97)
+---------------------
+1. Make the directions for installation more clear in Makefile.
+2. Modified src/linux/Makefile1 in order to build by gvbox's makefile.
+
+v1.9 (12/27/96)
+---------------------
+1. Minor mod. in the Makefile and linux/Makefile.1
+
+v1.8 (Froze: 12/13/96)
+---------------------
+1. Traps signals.
+
+v1.7 (Froze: 03/28/96)
+---------------------
+1. Changed the makefiles -- now $MACHINE/Makefile.1 contains only 
+   machine-dependent definitions.
+2. Eliminated 'fclose' calls for SGI machines.  See #if in COUT.c.
+   Doing this prevents a 'broken pipe' error which causes a core dump.
+   Yes, I tried to trap SIGPIPE, but, it wouldn't take.
+
+v1.6 (Froze: 3/20/96)
+---------------------
+1. Very minor diagnositc mods. In gzip.c. -JHM
+
+v1.5 (Froze: 3/14/96)
+---------------------
+1. Updated Makefile.1 for each machine except linux.
+
+v1.4 (Froze: 3/5/96)
+----------------------
+1. Reads gzip-ed input UF files.  This file pointer, after it is opened
+   the first time, may not be reused; no seeking.  However, the
+   code to reuse the file pointers is still part of sprint.
+   See CINITCOS.c for location for the gzip pipe initialization.
+
+v1.3 (Froze: 3/5/96)
+----------------------
+- Compiles and runs on Linux using f2c. Also, see the note.  JHM 3/4/96
+- Removed nearly all compilier warning.  Only trivial stuff.
+
+Note: 3/4/96 -- John Merritt
+
+This version works on big and little endian machines.  Some rewritten routines
+are included.  See the files: CINITCOS.c and COUT.c.
+
+The byte-order problem still exists and I have only provided a simple kludge
+fix.  The problem is that output values are half-word swapped.  I've added
+a function called 'two_byte_swap' which swaps pairs of 16 bits.  This 
+produces an output file that when processed by 2A-54 and 2A-55, their output
+results are the same for big-endian or little-endian.  In other words, 
+the output of SPRINT is not binary compatable between big and little 
+endian machines; this should be resolved so that the output file is
+identical on both.
+
+However, In order to make the output file binary endian-independant,
+all programs that read the sprint output will need to be modified, in
+their input section, to swap bytes appropriately.  This may be too
+problematic.
+
+Additionally, the output MUDRAS file has some obvious byte (or half-word)
+swapping problem.  Most notably, in the headers.
+
+A new directory is included, linux/.  It contains files specific for
+operation on Linux.   Linux, typically, runs on little-endian machines.
+
+
+v1.2 (Froze: 3/1/96)
+----------------------
+- New source from Stacy (1/9/96). This version supports base scan 
+  interpolation.
+- No longer depends on the NCAR graphics libraries
+- Removed doc and example.
+
+v1.1 (Froze: 9/8/95)
+--------------------

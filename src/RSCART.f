@@ -1,0 +1,49 @@
+      SUBROUTINE RSCART(ICART,NRCBF,ICTAB,KZBM,IDS,JL,IC,IHI,IBKNT,
+     X                  KZOUT,IS360,NST,IABOVE)
+      LOGICAL IS360
+      DIMENSION ICART(1),IBKNT(4),ICTAB(4)
+      IABOVE=1
+      ITST=(ICTAB(JL+2)-KZBM)*IDS
+      IF(ITST.GE.0) GO TO 10
+C
+C        NO MATCHUP BETWEEN DATA AND CARTESIAN GRID
+C
+      IF(.NOT.IS360) GO TO 701
+   10 CONTINUE
+      IBKNT(1)=1
+      IBKNT(2)=0
+      IBKNT(3)=NRCBF
+      IBKNT(4)=0
+      IF(IDS.GT.0) THEN
+      IC=1
+      IHI=1
+      ELSE
+      IC=ICTAB(2)
+      IHI=NRCBF
+      END IF
+      ISTRT=IC
+   30 CONTINUE
+      CALL IGETCP2(ICART(IC),KZCART,IX,IY)
+      ITST=(KZCART-KZBM)*IDS
+      IF(ITST.GE.0) GO TO 40
+      IC=IC+IDS
+      IF(IC.LE.0.OR.IC.GT.ICTAB(2)) THEN
+         IF(IS360) THEN
+            IC=ISTRT
+            CALL IGETCP2(ICART(IC),KZCART,IX,IY)
+            GO TO 40
+         ELSE
+            GO TO 701
+         END IF
+      END IF
+      GO TO 30
+   40 CONTINUE
+      KZOUT=KZCART
+      NST=0
+      RETURN
+  701 CONTINUE
+      NST=1
+      CALL TPQERX(306,0)
+      IABOVE=0
+      RETURN
+      END
